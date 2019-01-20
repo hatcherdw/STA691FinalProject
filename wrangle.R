@@ -52,6 +52,8 @@ PERMALL %>%
     
     #EXtract SOC major group and add as new variable
     mutate(.,SOCMajorGroup = str_sub(PW_SOC_CODE,1,2))
+
+    #Test comment
     
     
     
