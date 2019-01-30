@@ -43,39 +43,63 @@ post2015Import <- function(dataFile) {
     raw <- read_xlsx(dataFile,col_names=post2015Meta$Names,col_types=post2015Meta$Type
         ,skip=1,na=post2015Missing)    
     names(raw) <- toupper(names(raw))
-    raw <- mutate_all(raw,c("toupper"))
+    return(raw)
 }
 
-post2015List <- vector("list",length(post2015DataFiles))
-for (i in seq_along(post2015DataFiles)) {
-    post2015List[[i]] <- post2015Import(post2015DataFiles[[i]])
+PERM2015 <- post2015Import(post2015DataFiles[1])
+PERM2016 <- post2015Import(post2015DataFiles[2])
+PERM2017 <- post2015Import(post2015DataFiles[3])
+PERM2018 <- post2015Import(post2015DataFiles[4])
+
+post2015 <- bind_rows(PERM2015,PERM2016,PERM2017,PERM2018)
+
+PERMAllVars <- rbind.fill(pre2015,post2015)
+
+varsInBoth <- c("CASE_NUMBER","DECISION_DATE","CASE_STATUS","EMPLOYER_NAME",
+    "EMPLOYER_ADDRESS_1","EMPLOYER_ADDRESS_2","EMPLOYER_CITY","EMPLOYER_STATE",
+    "EMPLOYER_POSTAL_CODE","2007_NAICS_US_CODE","2007_NAICS_US_TITLE",
+    "PW_SOC_CODE","PW_JOB_TITLE_9089","PW_LEVEL_9089","PW_AMOUNT_9089",
+    "PW_UNIT_OF_PAY_9089","WAGE_OFFER_FROM_9089","WAGE_OFFER_TO_9089",
+    "WAGE_OFFER_UNIT_OF_PAY_9089","JOB_INFO_WORK_CITY","JOB_INFO_WORK_STATE",
+    "COUNTRY_OF_CITIZENSHIP","CLASS_OF_ADMISSION","NAICS_US_CODE",
+    "NAICS_US_TITLE")
+
+PERMReduced <- PERMAllVars[,varsInBoth]
+
+hourlyPay <- function(amount,unit) {
+    if (!is.na(amount) && !is.na(unit)) {
+        amount <- as.numeric(amount)
+        if (identical(unit,'YEAR') || identical(unit,'YR')) {
+            hourly <- amount / 2080
+        }
+        else if (identical(unit,'HOUR') || identical(unit,'HR')) {
+            hourly <- amount
+        }
+        else if (identical(unit,'WEEK') || identical(unit,'WK')) {
+            hourly <- amount / 40
+        }
+        else if (identical(unit,'MONTH') || identical(unit,'MTH')) {
+            hourly <- amount / 160
+        }
+        else if (identical(unit,'BI-WEEKLY') || identical(unit,'BI')) {
+            hourly <- amount / 80
+        }
+    }
+    else {
+        hourly <- NA
+    }
+    return(hourly)
 }
 
-post2015 <- bind_rows(post2015List)
 
-PERMALL <- rbind.fill(pre2015,post2015)
-
-PERMALLtrans1 <- PERMALL %$%
-    mutate(.,EmployerState = mapvalues(EMPLOYER_STATE,toupper(state.name),
-        state.abb)) %$%
-    mutate(.,JobState = mapvalues(JOB_INFO_WORK_STATE,toupper(state.name),
-        state.abb)) %$%
-    mutate(.,SOCMajor = str_sub(PW_SOC_CODE,1,2))
-
-PERMALLDF <- as.data.frame(unclass(PERMALLtrans1),stringsAsFactors = TRUE)
-
-numLevels <- lapply(PERMALLDF, function(x) nlevels(x))
-pctMissing <- lapply(PERMALLDF, function(x) sum(is.na(x))/nrow(PERMALLDF))
-
-PERMALLtrans1 <- PERMALLDF %>%
-    select(which(pctMissing < 0.5 & numLevels < 300)) %>%
-    filter(CASE_STATUS %in% c("CERTIFIED","CERTIFIED-EXPIRED","DENIED")) %$%
-    mutate(.,Denied = revalue(CASE_STATUS, c("CERTIFIED"=0,
-        "CERTIFIED-EXPIRED"=0,"DENIED"=1)))
+PWHourly <- vector('numeric',length(PERMReduced))
+for (i in 1:nrow(PERMReduced)) {
+    PWHourly[[i]] <- hourlyPay(PERMReduced$PW_AMOUNT_9089[[i]],
+        PERMReduced$PW_UNIT_OF_PAY_9089[[i]])
+}   
     
     
     
     
     
-    
-           
+ 
